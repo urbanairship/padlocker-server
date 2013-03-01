@@ -1,13 +1,14 @@
-{% if approvals %}
-    {% for approval in approvals %}
+{% if auth_requests %}
+    {% for request in auth_requests %}
         <div class="row">
             <form action="" method="post">
-                <h4>{{approval.cn}}</h4>
+                <h4>{{auth_request.cn}}</h4>
                 <ul>
-                    <li>IP Address: {{approval.ip}}</li>
-                    <li>Service: {{approval.service}}</li>
+                    <li>IP Address: {{auth_request.ip}}</li>
+                    <li>Service: {{auth_request.service}}</li>
                 <ul>
-                <input type="hidden" name="cn" value ="{{approval.cn}}" />
+                <input type="hidden" name="cn" value ="{{auth_request.cn}}" />
+                <input type="hidden" name="ip" value ="{{auth_request.ip}}" />
                 <button class="btn btn-danger" type="submit">Approve</button>
                 <button class="btn" type="submit">Delete</button>
 

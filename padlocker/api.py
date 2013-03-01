@@ -1,6 +1,7 @@
 import json
 import netaddr
 import os
+import redis
 
 from flask import Flask, abort, request, render_template
 
@@ -8,6 +9,15 @@ import config
 
 app = Flask(__name__)
 pad_config = config.PadConfig()
+
+REDIS_HOST = 'localhost'
+REDIS_PORT = 6379
+def get_redis_conn():
+    conn = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+    return conn
+
+REDIS = get_redis_conn()
+
 
 def get_key_names():
     return [
@@ -33,6 +43,38 @@ def is_permitted(cn, req):
 
     return True
 
+def request_authorization(cn, req):
+    """The request is permitted, but now we need approval to return the key."""
+    REDIS.lpush('approval_queue', json.dumps(
+        {'cn': cn, 'ip': req.request_addr, 'service': req.data.get('service', '')}
+    ))
+    #REDIS.expire('approval_queue', 60) # TTL of only a minute.
+
+    return 'request for approval received'
+
+
+def _make_auth_key(cn, ip):
+    return '{0}_authorization_for_{1}'.format(cn, ip)
+
+
+def get_authorization_requests():
+    return [json.loads(item) for item in REDIS.lrange('approval_queue', 0, -1)]
+
+
+def authorize_request(cn, ip):
+    """This function actually marks a CN as authorized for an IP.
+
+    This step requires manual intervention from the web interface.
+
+    """
+    key = _make_auth_key(cn, ip)
+    REDIS.set(key, True)
+    REDIS.expire(key, 5 * 60) # Approvals last for 5 minutes.
+
+
+def is_authorized(cn, ip):
+    return REDIS.get(_make_auth_key(cn, ip)) is not None
+
 
 def read_file(cn):
     with open('{0}/{1}'.format(pad_config.key_dir, cn)) as f:
@@ -53,14 +95,19 @@ def process_api_post(cn):
     if cn in get_key_names():
         return read_file(cn)
 
+
 class Approval(object):
-    def __init__(self, cn, ip, service, *args, **kwargs):
-        self.cn = cn
-        self.ip = ip
-        self.service = service
+    """A context object for our webforms."""
+    def __init__(self, *args, **kwargs):
+        self.cn = kwargs.get('cn', '')
+        self.ip = kwargs.get('ip', '')
+        self.service = kwargs.get('service', '')
+        payload = kwargs.get('payload', {})
+        for item in payload:
+            self.__setattr__(item, payload[item])
 
 
-def get_fake_approvals(x=5):
+def get_fake_auth_requests(x=5):
     return sorted([
         Approval('fake-cn-{0}.example.com'.format(i), '127.0.0.1', 'test_service')
         for i in range(x)
@@ -72,7 +119,10 @@ def get_fake_approvals(x=5):
 @app.route('/', methods=['GET', 'POST'])
 def web_root():
     """Route that administrative users will use."""
-    return render_template('index.html', approvals=get_fake_approvals(10))
+    auth_requests = [
+        Approval(payload=request) for request in get_authorization_requests()
+    ]
+    return render_template('index.html', auth_requests=auth_requests)
 
 
 @app.route('/api/<cn>', methods=['POST'])
