@@ -101,7 +101,7 @@ def request_authorization(cn, key_req):
 
     REDIS.expire('approval_queue', 60) # TTL of only a minute.
 
-    abort(201, 'Submitted, come back later')
+    return 'Submitted, come back later', 201
 
 
 def _make_auth_key(cn, ip):
