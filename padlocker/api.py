@@ -22,8 +22,14 @@ def process_get():
 
 
 def is_permitted(common_name):
-    cidr_ranges = pad_config.key_configs.get(common_name) or []
-    return bool(netaddr.app_matching_cidrs(request.remote_addr, cidr_ranges))
+    key_config = pad_config.key_configs.get(common_name)
+
+    if not key_config:
+        return False
+
+    if not netaddr.all_matching_cidrs(request.remote_addr, key_config.get("cidr_ranges", ["0.0.0.0/32"])):
+        return False
+    return True
 
 
 def read_file(common_name):
@@ -34,12 +40,13 @@ def read_file(common_name):
 
 
 def process_post():
-    if not is_permitted():
-        abort(403)
     try:
         key_requests = json.loads(request.data)
     except:
         abort(400)
+
+    if not is_permitted(key_requests.keys()[0]):
+        abort(403)
 
     if len(key_requests.keys()) > 1:
         # We should only be requesting one key at a time.
