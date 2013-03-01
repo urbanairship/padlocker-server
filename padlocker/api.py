@@ -9,14 +9,14 @@ app = Flask(__name__)
 #
 ## These are arguements that we should fill in from a settings file.
 ###
-CERT_REQUEST_NAME = 'KEY_REQ'
 CIDR_IPS = (
     '127.0.0.1/24',
     '10.0.0.0/8',
     '192.168.0.1/24',
 )
 KNOWN_CERT_COMMON_NAMES = (
-    'test'
+    'a-server.example.com',
+    'b-server.example.com',
 )
 
 def process_get():
@@ -38,7 +38,7 @@ def process_post():
     if not is_permitted():
         abort(403)
     try:
-        cert_requests = json.loads(request.form.get(CERT_REQUEST_NAME), '')
+        cert_requests = json.loads(request.data)
     except:
         abort(400)
 
