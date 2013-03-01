@@ -1,3 +1,4 @@
+import re
 ip = '0.0.0.0'
 key_dir = 'keys'
 key_configs = {
@@ -6,5 +7,7 @@ key_configs = {
     },
     'b-server.example.com': {
         'cidr_ranges': ['0.0.0.0/0'],
+        'service': 'b-server',
+        'path': [re.compile(r".*key$"), lambda x: False]
     }
 }

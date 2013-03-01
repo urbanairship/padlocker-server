@@ -44,10 +44,10 @@ def apply_check(check, val):
     elif isinstance(check, functype):
         sys.stdout.write("evaluating '%s' through lambda..." % val)
         if check(val):
-            print "matched"
+            print "returned true"
             return True
         else:
-            print "didn't match"
+            print "returned false"
             return False
 
     return True
