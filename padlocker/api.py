@@ -15,54 +15,50 @@ def get_key_names():
         if not file.startswith('.')
     ]
 
-KNOWN_KEY_COMMON_NAMES = get_key_names()
 
 def process_get():
-    return json.dumps(KNOWN_KEY_COMMON_NAMES)
+    return json.dumps(get_key_names())
 
 
-def is_permitted(common_name):
-    key_config = pad_config.key_configs.get(common_name)
+def is_permitted(cn, req):
+    key_config = pad_config.key_configs.get(cn)
 
     if not key_config:
         return False
 
     if not netaddr.all_matching_cidrs(request.remote_addr, key_config.get("cidr_ranges", ["0.0.0.0/32"])):
         return False
+    
     return True
 
 
-def read_file(common_name):
-    with open('{0}/{1}'.format(pad_config.key_dir, common_name)) as f:
+def read_file(cn):
+    with open('{0}/{1}'.format(pad_config.key_dir, cn)) as f:
         key_data = f.read()
 
     return key_data
 
 
-def process_post():
+def get_key(cn):
     try:
-        key_requests = json.loads(request.data)
+        req = json.loads(request.data)
     except:
         abort(400)
 
-    if not is_permitted(key_requests.keys()[0]):
+    if not is_permitted(cn, req):
         abort(403)
 
-    if len(key_requests.keys()) > 1:
-        # We should only be requesting one key at a time.
-        abort(400)
-
-    for common_name, meta_data in key_requests.items():
-        if common_name in KNOWN_KEY_COMMON_NAMES:
-            return read_file(common_name)
+    if cn in get_key_names():
+        return read_file(cn)
 
 
 @app.route('/', methods=['GET', 'POST'])
 def root():
-    if request.method == 'POST':
-        return process_post()
-
     return process_get()
+
+@app.route('/api/<cn>', methods=['POST'])
+def get_cn(cn):
+    return get_key(cn)
 
 if __name__ == '__main__':
     app.debug = True
