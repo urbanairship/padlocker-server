@@ -16,7 +16,7 @@ def get_key_names():
     ]
 
 
-def process_get():
+def process_api_get():
     return json.dumps(get_key_names())
 
 
@@ -39,7 +39,7 @@ def read_file(cn):
     return key_data
 
 
-def get_key(cn):
+def process_api_post(cn):
     try:
         req = json.loads(request.data)
     except:
@@ -53,12 +53,13 @@ def get_key(cn):
 
 
 @app.route('/', methods=['GET', 'POST'])
-def root():
-    return process_get()
+def web_root():
+    """Route that administrative users will use."""
+    pass
 
 @app.route('/api/<cn>', methods=['POST'])
 def get_cn(cn):
-    return get_key(cn)
+    return process_api_post(cn)
 
 if __name__ == '__main__':
     app.debug = True
