@@ -44,7 +44,9 @@ def apply_check(check, val):
             print "not equal"
             return False
     elif isinstance(check, retype):
-        sys.stdout.write("matching '%s' against regex '%s'..." % (val, check.pattern))
+        sys.stdout.write("matching '%s' against regex '%s'..." % (
+            val, check.pattern
+        ))
         if check.match(val):
             print "matched"
             return True
@@ -88,14 +90,18 @@ def is_permitted(cn, req):
 
     return True
 
-def request_authorization(cn, req):
-    """The request is permitted, but now we need approval to return the key."""
-    REDIS.lpush('approval_queue', json.dumps(
-        {'cn': cn, 'ip': req.request_addr, 'service': req.data.get('service', '')}
-    ))
-    #REDIS.expire('approval_queue', 60) # TTL of only a minute.
 
-    return 'request for approval received'
+def request_authorization(cn, key_req):
+    """The request is permitted, but now we need approval to return the key."""
+    REDIS.lpush('approval_queue', json.dumps({
+        'cn': cn,
+        'ip': request.remote_addr,
+        'service': key_req.get('service', '')
+    }))
+
+    REDIS.expire('approval_queue', 60) # TTL of only a minute.
+
+    abort(201, 'Submitted, come back later')
 
 
 def _make_auth_key(cn, ip):
@@ -130,16 +136,18 @@ def read_file(cn):
 
 def process_api_post(cn):
     try:
-        req = json.loads(request.data)
+        key_req = json.loads(request.data)
     except:
         abort(400, 'you request contained invalid json')
 
-    if not is_permitted(cn, req):
+    if not is_permitted(cn, key_req):
         abort(403, 'your request was denied')
 
     if cn in get_key_names():
-        return read_file(cn)
-
+        if is_authorized(cn, request.remote_addr):
+            return read_file(cn)
+        else:
+            return request_authorization(cn, key_req)
 
 class Approval(object):
     """A context object for our webforms."""
@@ -150,15 +158,6 @@ class Approval(object):
         payload = kwargs.get('payload', {})
         for item in payload:
             self.__setattr__(item, payload[item])
-
-
-def get_fake_auth_requests(x=5):
-    return sorted([
-        Approval('fake-cn-{0}.example.com'.format(i), '127.0.0.1', 'test_service')
-        for i in range(x)
-    ],
-    key=lambda approval: approval.cn
-    )
 
 
 @app.route('/', methods=['GET', 'POST'])
