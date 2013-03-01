@@ -1,53 +1,52 @@
 import json
+import netaddr
+import os
 
 from flask import Flask, abort, request
 
-import netaddr
+import config
 
 app = Flask(__name__)
+pad_config = config.PadConfig()
 
-#
-## These are arguements that we should fill in from a settings file.
-###
-CIDR_IPS = (
-    '127.0.0.1/24',
-    '10.0.0.0/8',
-    '192.168.0.1/24',
-)
-KNOWN_CERT_COMMON_NAMES = (
-    'a-server.example.com',
-    'b-server.example.com',
-)
+def get_key_names():
+    return [
+        file for file in os.listdir(pad_config.key_dir)
+        if not file.startswith('.')
+    ]
+
+KNOWN_KEY_COMMON_NAMES = get_key_names()
 
 def process_get():
-    return json.dumps(KNOWN_CERT_COMMON_NAMES)
+    return json.dumps(KNOWN_KEY_COMMON_NAMES)
 
 
-def is_permitted():
-    return bool(netaddr.all_matching_cidrs(request.remote_addr, CIDR_IPS))
+def is_permitted(common_name):
+    cidr_ranges = pad_config.key_configs.get(common_name) or []
+    return bool(netaddr.app_matching_cidrs(request.remote_addr, cidr_ranges))
 
 
 def read_file(common_name):
-    with open('certs/{0}'.format(common_name)) as f:
-        cert_data = f.read()
+    with open('{0}/{1}'.format(pad_config.key_dir, common_name)) as f:
+        key_data = f.read()
 
-    return cert_data
+    return key_data
 
 
 def process_post():
     if not is_permitted():
         abort(403)
     try:
-        cert_requests = json.loads(request.data)
+        key_requests = json.loads(request.data)
     except:
         abort(400)
 
-    if len(cert_requests.keys()) > 1:
-        # We should only be requesting one cert at a time.
+    if len(key_requests.keys()) > 1:
+        # We should only be requesting one key at a time.
         abort(400)
 
-    for common_name, meta_data in cert_requests.items():
-        if common_name in KNOWN_CERT_COMMON_NAMES:
+    for common_name, meta_data in key_requests.items():
+        if common_name in KNOWN_KEY_COMMON_NAMES:
             return read_file(common_name)
 
 
@@ -60,4 +59,4 @@ def root():
 
 if __name__ == '__main__':
     app.debug = True
-    app.run(host='0.0.0.0')
+    app.run(host=pad_config.ip)
