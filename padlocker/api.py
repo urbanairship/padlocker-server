@@ -2,7 +2,7 @@ import json
 import netaddr
 import os
 
-from flask import Flask, abort, request
+from flask import Flask, abort, request, render_template
 
 import config
 
@@ -53,11 +53,27 @@ def process_api_post(cn):
     if cn in get_key_names():
         return read_file(cn)
 
+class Approval(object):
+    def __init__(self, cn, ip, service, *args, **kwargs):
+        self.cn = cn
+        self.ip = ip
+        self.service = service
+
+
+def get_fake_approvals(x=5):
+    return sorted([
+        Approval('fake-cn-{0}.example.com'.format(i), '127.0.0.1', 'test_service')
+        for i in range(x)
+    ],
+    key=lambda approval: approval.cn
+    )
+
 
 @app.route('/', methods=['GET', 'POST'])
 def web_root():
     """Route that administrative users will use."""
-    pass
+    return render_template('index.html', approvals=get_fake_approvals(10))
+
 
 @app.route('/api/<cn>', methods=['POST'])
 def get_cn(cn):

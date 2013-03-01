@@ -1,0 +1,19 @@
+{% if approvals %}
+    {% for approval in approvals %}
+        <div class="row">
+            <form action="" method="post">
+                <h4>{{approval.cn}}</h4>
+                <ul>
+                    <li>IP Address: {{approval.ip}}</li>
+                    <li>Service: {{approval.service}}</li>
+                <ul>
+                <input type="hidden" name="cn" value ="{{approval.cn}}" />
+                <button class="btn btn-danger" type="submit">Approve</button>
+                <button class="btn" type="submit">Delete</button>
+
+            </form>
+
+        </div>
+    {% endfor %}
+
+{% endif %}
