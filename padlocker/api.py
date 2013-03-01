@@ -17,7 +17,7 @@ def get_key_names():
 
 KNOWN_KEY_COMMON_NAMES = get_key_names()
 
-def process_get():
+def process_api_get():
     return json.dumps(KNOWN_KEY_COMMON_NAMES)
 
 
@@ -39,7 +39,7 @@ def read_file(common_name):
     return key_data
 
 
-def process_post():
+def process_api_post():
     try:
         key_requests = json.loads(request.data)
     except:
@@ -57,12 +57,19 @@ def process_post():
             return read_file(common_name)
 
 
-@app.route('/', methods=['GET', 'POST'])
-def root():
+@app.route('/api', methods=['GET', 'POST'])
+def api_root():
+    """Route that client daemons will use."""
     if request.method == 'POST':
-        return process_post()
+        return process_api_post()
 
-    return process_get()
+    return process_api_get()
+
+
+@app.route('/', methods=['GET', 'POST'])
+def web_root():
+    """Route that administrative users will use."""
+    pass
 
 if __name__ == '__main__':
     app.debug = True
