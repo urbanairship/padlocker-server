@@ -8,6 +8,6 @@ key_configs = {
     'b-server.example.com': {
         'cidr_ranges': ['0.0.0.0/0'],
         'service': 'b-server',
-        'path': [re.compile(r".*key$"), lambda x: False]
+        'path': [re.compile(r".*key$"), lambda x: True]
     }
 }
