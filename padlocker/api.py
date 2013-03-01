@@ -5,11 +5,12 @@ import os
 import re
 import redis
 
-from flask import Flask, abort, request, render_template
+from flask import Flask, abort, flash, redirect, request, render_template, url_for
 
 import config
 
 app = Flask(__name__)
+app.secret_key = 'funballs'
 pad_config = config.PadConfig()
 
 REDIS_HOST = 'localhost'
@@ -122,6 +123,8 @@ def authorize_request(cn, ip):
 
     """
     key = _make_auth_key(cn, ip)
+    pending_key = '{0}_pending'.format(key)
+    REDIS.delete(pending_key)
     REDIS.set(key, True)
     REDIS.expire(key, 5 * 60) # Approvals last for 5 minutes.
 
@@ -153,7 +156,13 @@ def process_api_post(cn):
             return request_authorization(cn, key_req)
 
 def process_web_post():
-    pass
+    cn = request.form.get('cn')
+    ip = request.form.get('ip')
+
+    authorize_request(cn, ip)
+    flash('You successfully approved {0}'.format(cn))
+
+    return redirect(url_for('web_root'))
 
 class Approval(object):
     """A context object for our webforms."""
