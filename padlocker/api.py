@@ -26,9 +26,11 @@ def is_permitted(cn, req):
     if not key_config:
         return False
 
-    if not netaddr.all_matching_cidrs(request.remote_addr, key_config.get("cidr_ranges", ["0.0.0.0/32"])):
+    if not netaddr.all_matching_cidrs(
+        request.remote_addr, key_config.get("cidr_ranges", ["0.0.0.0/32"])
+    ):
         return False
-    
+
     return True
 
 
