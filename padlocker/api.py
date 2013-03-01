@@ -93,13 +93,16 @@ def is_permitted(cn, req):
 
 def request_authorization(cn, key_req):
     """The request is permitted, but now we need approval to return the key."""
-    REDIS.lpush('approval_queue', json.dumps({
+
+    ip = key_req.get('ip', '')
+    pending_key = '{0}_pending'.format(_make_auth_key(cn, ip))
+    REDIS.set(pending_key, json.dumps({
         'cn': cn,
         'ip': request.remote_addr,
         'service': key_req.get('service', '')
     }))
 
-    REDIS.expire('approval_queue', 60) # TTL of only a minute.
+    REDIS.expire(pending_key, 60) # TTL of only a minute.
 
     abort(201, 'Submitted, come back later')
 
@@ -109,7 +112,7 @@ def _make_auth_key(cn, ip):
 
 
 def get_authorization_requests():
-    return [json.loads(item) for item in REDIS.lrange('approval_queue', 0, -1)]
+    return [json.loads(REDIS.get(item)) for item in REDIS.keys('*_pending')]
 
 
 def authorize_request(cn, ip):
@@ -149,6 +152,9 @@ def process_api_post(cn):
         else:
             return request_authorization(cn, key_req)
 
+def process_web_post():
+    pass
+
 class Approval(object):
     """A context object for our webforms."""
     def __init__(self, *args, **kwargs):
@@ -163,8 +169,11 @@ class Approval(object):
 @app.route('/', methods=['GET', 'POST'])
 def web_root():
     """Route that administrative users will use."""
+    if request.method == 'POST':
+        return process_web_post()
+
     auth_requests = [
-        Approval(payload=request) for request in get_authorization_requests()
+        Approval(payload=auth_req) for auth_req in get_authorization_requests()
     ]
     return render_template('index.html', auth_requests=auth_requests)
 
