@@ -3,23 +3,33 @@ import netaddr
 import sys
 import os
 import re
-import redis
 
-from flask import Flask, abort, flash, redirect, request, render_template, url_for
+from flask import (
+    Flask, abort, flash, redirect, request, render_template, url_for
+)
+
+from flask_login import LoginManager
 
 import config
+import dao
+import user
 
 app = Flask(__name__)
 app.secret_key = 'funballs'
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+DAO = dao.RedisBackend(host='localhost', port=6379)
+
 pad_config = config.PadConfig()
 
-REDIS_HOST = 'localhost'
-REDIS_PORT = 6379
-def get_redis_conn():
-    conn = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
-    return conn
+#
+## Login stuff
+###
 
-REDIS = get_redis_conn()
+@login_manager.user_loader
+def load_user(userid):
+    return user.User(userid)
 
 
 def get_key_names():
@@ -32,7 +42,9 @@ def get_key_names():
 def process_api_get():
     return json.dumps(get_key_names())
 
+
 def apply_check(check, val):
+    """This applies all checks configured for a given key."""
     retype = type(re.compile(""))
     functype = type(lambda x: x)
 
@@ -41,9 +53,11 @@ def apply_check(check, val):
         if check == val:
             print "equal"
             return True
+
         else:
             print "not equal"
             return False
+
     elif isinstance(check, retype):
         sys.stdout.write("matching '%s' against regex '%s'..." % (
             val, check.pattern
@@ -51,14 +65,17 @@ def apply_check(check, val):
         if check.match(val):
             print "matched"
             return True
+
         else:
             print "didn't match"
             return False
+
     elif isinstance(check, functype):
         sys.stdout.write("evaluating '%s' through lambda..." % val)
         if check(val):
             print "returned true"
             return True
+
         else:
             print "returned false"
             return False
@@ -96,41 +113,13 @@ def request_authorization(cn, key_req):
     """The request is permitted, but now we need approval to return the key."""
 
     ip = key_req.get('ip', '')
-    pending_key = '{0}_pending'.format(_make_auth_key(cn, ip))
-    REDIS.set(pending_key, json.dumps({
+    DAO.enqueue_request(cn, ip, json.dumps({
         'cn': cn,
         'ip': request.remote_addr,
         'service': key_req.get('service', '')
     }))
 
-    REDIS.expire(pending_key, 60) # TTL of only a minute.
-
     return 'Submitted, come back later', 201
-
-
-def _make_auth_key(cn, ip):
-    return '{0}_authorization_for_{1}'.format(cn, ip)
-
-
-def get_authorization_requests():
-    return [json.loads(REDIS.get(item)) for item in REDIS.keys('*_pending')]
-
-
-def authorize_request(cn, ip):
-    """This function actually marks a CN as authorized for an IP.
-
-    This step requires manual intervention from the web interface.
-
-    """
-    key = _make_auth_key(cn, ip)
-    pending_key = '{0}_pending'.format(key)
-    REDIS.delete(pending_key)
-    REDIS.set(key, True)
-    REDIS.expire(key, 5 * 60) # Approvals last for 5 minutes.
-
-
-def is_authorized(cn, ip):
-    return REDIS.get(_make_auth_key(cn, ip)) is not None
 
 
 def read_file(cn):
@@ -150,19 +139,21 @@ def process_api_post(cn):
         abort(403, 'your request was denied')
 
     if cn in get_key_names():
-        if is_authorized(cn, request.remote_addr):
+        if DAO.is_authorized(cn, request.remote_addr):
             return read_file(cn)
         else:
             return request_authorization(cn, key_req)
+
 
 def process_web_post():
     cn = request.form.get('cn')
     ip = request.form.get('ip')
 
-    authorize_request(cn, ip)
+    DAO.authorize_request(cn, ip)
     flash('You successfully approved {0}'.format(cn))
 
     return redirect(url_for('web_root'))
+
 
 class Approval(object):
     """A context object for our webforms."""
@@ -182,8 +173,9 @@ def web_root():
         return process_web_post()
 
     auth_requests = [
-        Approval(payload=auth_req) for auth_req in get_authorization_requests()
+        Approval(payload=auth_req) for auth_req in DAO.get_all_auth_requests()
     ]
+
     return render_template('index.html', auth_requests=auth_requests)
 
 
