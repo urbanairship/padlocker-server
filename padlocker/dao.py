@@ -10,6 +10,11 @@ class RedisBackend(Dao):
     def __init__(self, host='localhost', port=6379):
         self.conn = redis.Redis(host=host, port=port)
 
+class UserBackend(RedisBackend):
+    def get_user_data(self, user_id):
+        return self.conn.hgetall('user_{0}'.format(user_id))
+
+class KeyRequestBackend(RedisBackend):
     def _make_auth_key(self, cn, ip):
         return '{0}_authorization_for_{1}'.format(cn, ip)
 

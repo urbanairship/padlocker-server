@@ -8,7 +8,7 @@ from flask import (
     Flask, abort, flash, redirect, request, render_template, url_for
 )
 
-from flask_login import LoginManager
+from flask_login import LoginManager, LoginForm, login_user
 
 import config
 import dao
@@ -23,25 +23,45 @@ DAO = dao.RedisBackend(host='localhost', port=6379)
 
 pad_config = config.PadConfig()
 
+
+class Approval(object):
+    """A context object for our webforms."""
+    def __init__(self, *args, **kwargs):
+        self.cn = kwargs.get('cn', '')
+        self.ip = kwargs.get('ip', '')
+        self.service = kwargs.get('service', '')
+        payload = kwargs.get('payload', {})
+        for item in payload:
+            self.__setattr__(item, payload[item])
+
+
 #
 ## Login stuff
 ###
 
 @login_manager.user_loader
-def load_user(userid):
-    return user.User(userid)
+def load_user(username):
+    return user.User(username)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        login_user(user)
+        flash('Logged in successfully.')
+        return redirect(request.args.get('next') or url_for('index'))
+    return render_template('login.html', form=form)
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('index'))
 
 
-def get_key_names():
-    return [
-        file for file in os.listdir(pad_config.key_dir)
-        if not file.startswith('.')
-    ]
-
-
-def process_api_get():
-    return json.dumps(get_key_names())
-
+#
+## Invariance Checking
+###
 
 def apply_check(check, val):
     """This applies all checks configured for a given key."""
@@ -109,6 +129,32 @@ def is_permitted(cn, req):
     return True
 
 
+#
+## Key file handling stuff
+### 
+
+def get_key_names():
+    return [
+        file for file in os.listdir(pad_config.key_dir)
+        if not file.startswith('.')
+    ]
+
+
+def read_file(cn):
+    with open('{0}/{1}'.format(pad_config.key_dir, cn)) as f:
+        key_data = f.read()
+
+    return key_data
+
+
+#
+## URL routing.
+###
+
+def process_api_get():
+    return json.dumps(get_key_names())
+
+
 def request_authorization(cn, key_req):
     """The request is permitted, but now we need approval to return the key."""
 
@@ -120,13 +166,6 @@ def request_authorization(cn, key_req):
     }))
 
     return 'Submitted, come back later', 201
-
-
-def read_file(cn):
-    with open('{0}/{1}'.format(pad_config.key_dir, cn)) as f:
-        key_data = f.read()
-
-    return key_data
 
 
 def process_api_post(cn):
@@ -153,17 +192,6 @@ def process_web_post():
     flash('You successfully approved {0}'.format(cn))
 
     return redirect(url_for('web_root'))
-
-
-class Approval(object):
-    """A context object for our webforms."""
-    def __init__(self, *args, **kwargs):
-        self.cn = kwargs.get('cn', '')
-        self.ip = kwargs.get('ip', '')
-        self.service = kwargs.get('service', '')
-        payload = kwargs.get('payload', {})
-        for item in payload:
-            self.__setattr__(item, payload[item])
 
 
 @app.route('/', methods=['GET', 'POST'])
