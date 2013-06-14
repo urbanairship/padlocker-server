@@ -32,7 +32,9 @@ def get_key_names():
 def process_api_get():
     return json.dumps(get_key_names())
 
+
 def apply_check(check, val):
+    """This applies all checks configured for a given key."""
     retype = type(re.compile(""))
     functype = type(lambda x: x)
 
@@ -41,9 +43,11 @@ def apply_check(check, val):
         if check == val:
             print "equal"
             return True
+
         else:
             print "not equal"
             return False
+
     elif isinstance(check, retype):
         sys.stdout.write("matching '%s' against regex '%s'..." % (
             val, check.pattern
@@ -51,14 +55,17 @@ def apply_check(check, val):
         if check.match(val):
             print "matched"
             return True
+
         else:
             print "didn't match"
             return False
+
     elif isinstance(check, functype):
         sys.stdout.write("evaluating '%s' through lambda..." % val)
         if check(val):
             print "returned true"
             return True
+
         else:
             print "returned false"
             return False
@@ -155,6 +162,7 @@ def process_api_post(cn):
         else:
             return request_authorization(cn, key_req)
 
+
 def process_web_post():
     cn = request.form.get('cn')
     ip = request.form.get('ip')
@@ -163,6 +171,7 @@ def process_web_post():
     flash('You successfully approved {0}'.format(cn))
 
     return redirect(url_for('web_root'))
+
 
 class Approval(object):
     """A context object for our webforms."""
@@ -184,6 +193,7 @@ def web_root():
     auth_requests = [
         Approval(payload=auth_req) for auth_req in get_authorization_requests()
     ]
+
     return render_template('index.html', auth_requests=auth_requests)
 
 
